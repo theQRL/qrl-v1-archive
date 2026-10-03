@@ -1,5 +1,3 @@
-# qrl-v1-archive
-
 # TESTNET ARCHIVE REHEARSAL — QRL v1 archive
 
 > **This is a test of the archival process, not the QRL v1 mainnet archive.** During these rehearsals, the public testnet and mainnet remain live. Blocks produced after the lab fork point belong to an isolated, disposable testnet branch. Do not use rehearsal data as evidence of mainnet balances or finality.
