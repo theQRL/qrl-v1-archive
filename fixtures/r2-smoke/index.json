@@ -1,0 +1,12 @@
+{
+  "schema": "qrl.v1.archive.placeholder.v1",
+  "status": "setup-only",
+  "warning": "TESTNET ARCHIVE REHEARSAL. Not the QRL v1 mainnet archive. The public testnet and mainnet remain live.",
+  "signed": false,
+  "chain_data_available": false,
+  "run_id": null,
+  "fork_height": null,
+  "terminal_height": null,
+  "release_url": null,
+  "transport_test_object": "testnet/placeholder/range-test.txt"
+}

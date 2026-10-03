@@ -1,0 +1,7 @@
+TESTNET ARCHIVE REHEARSAL — NOT THE QRL v1 MAINNET ARCHIVE
+
+This data-domain placeholder is an unsigned HTTP transport test. It contains no QRL chain export, no signed release, no balances and no terminal block.
+
+The public QRL testnet and mainnet remain live. Do not use any placeholder object as evidence of QRL history or finality.
+
+Project source: https://github.com/theQRL/qrl-v1-archive

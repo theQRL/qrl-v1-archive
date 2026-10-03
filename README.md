@@ -14,6 +14,10 @@ This repository will hold the tools and formats needed to preserve and verify QR
 
 Archive releases will preserve stopped native node data and canonical chain data. Derived databases and indexes must be rebuildable. Releases must be checked against independent node exports and signed using QRL's existing release key.
 
+## Current files
+
+`fixtures/r2-smoke/` contains unsigned warning and transport-test objects. [Placeholder asset status](docs/pages-r2-placeholder.md) explains their role. They are not chain data or an archive release. `REHEARSAL-STATUS.md` records what remains unbuilt.
+
 ## Siblings
 
 The read-only website lives in `theQRL/qrl-v1-archive-explorer`. Deployment plans and operational records live in the **private** `theQRL/qrl-v1-archive-ops` repository.
