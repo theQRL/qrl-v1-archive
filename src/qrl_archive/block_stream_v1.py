@@ -12,6 +12,12 @@ import tempfile
 from pathlib import Path
 
 from .errors import IntegrityError, SourceError, UsageError
+from .protobuf_schema import (
+    PROTOBUF_BINDING_SHA256,
+    PROTOBUF_DESCRIPTOR_SHA256,
+    PROTOBUF_SCHEMA_SHA256,
+    assert_pinned_schema,
+)
 from .source import decode_block
 
 
@@ -152,6 +158,8 @@ def export_source(source, output: Path, *, network_id: str, genesis_hash: str,
                   max_bytes: int = MAX_SHARD_BYTES) -> dict:
     import re
 
+    assert_pinned_schema()
+
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,99}", run_id):
         raise UsageError("run ID must be 1-100 safe ASCII characters")
     if not 1 <= max_blocks <= MAX_BLOCKS_PER_SHARD:
@@ -205,6 +213,9 @@ def export_source(source, output: Path, *, network_id: str, genesis_hash: str,
         index = {
             "schema": INDEX_SCHEMA,
             "block_stream_format": SCHEMA,
+            "protobuf_schema_sha256": PROTOBUF_SCHEMA_SHA256,
+            "protobuf_binding_sha256": PROTOBUF_BINDING_SHA256,
+            "protobuf_descriptor_sha256": PROTOBUF_DESCRIPTOR_SHA256,
             "run_id": run_id,
             "network_id": network_id,
             "genesis_hash": genesis_hash,
@@ -259,6 +270,7 @@ def _read_shard_header(stream) -> tuple[str, bytes, int, int, int]:
 def verify_archive(directory: Path, *, network_id: str, genesis_hash: str,
                    fork_height: int, fork_hash: str, terminal_height: int,
                    terminal_hash: str) -> dict:
+    assert_pinned_schema()
     genesis_bytes = _hex32(genesis_hash, "genesis hash")
     fork_bytes = _hex32(fork_hash, "fork hash")
     terminal_bytes = _hex32(terminal_hash, "terminal hash")
@@ -270,6 +282,9 @@ def verify_archive(directory: Path, *, network_id: str, genesis_hash: str,
     if not isinstance(index, dict) or index.get("schema") != INDEX_SCHEMA or index.get("block_stream_format") != SCHEMA:
         raise IntegrityError("unsupported shards index schema")
     expected = {
+        "protobuf_schema_sha256": PROTOBUF_SCHEMA_SHA256,
+        "protobuf_binding_sha256": PROTOBUF_BINDING_SHA256,
+        "protobuf_descriptor_sha256": PROTOBUF_DESCRIPTOR_SHA256,
         "network_id": network_id,
         "genesis_hash": genesis_hash,
         "fork_height": fork_height,

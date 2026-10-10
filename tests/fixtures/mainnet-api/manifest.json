@@ -1,0 +1,139 @@
+{
+  "captured_at_utc": "2026-10-10T16:04:13.972368+00:00",
+  "cross_check": {
+    "endpoint": "mainnet-2.automated.theqrl.org:19009",
+    "matching_block_hash_heights": [
+      0,
+      4000000,
+      4373500
+    ],
+    "network_id": "The sleeper must awaken",
+    "node_version": "4.0.11 python"
+  },
+  "format": "qrl-v1-mainnet-rpc-protobuf-fixtures-v1",
+  "network_id": "The sleeper must awaken",
+  "node_version": "4.0.11 python",
+  "observed_tip_hash": "63692b2db8f49e66da2e447f502c172684b46575d5e3e30803925c5e00000000",
+  "observed_tip_height": 4373562,
+  "protobuf_schema_sha256": "0d70a3372c4668a1bf4fd42983ae01f2e0fb54b4030b808bbea78e5adadb23f0",
+  "samples": [
+    {
+      "block_bytes": 35511,
+      "block_file": "0-block-from-rpc.pb",
+      "block_hash": "2a1c4a9433f1de36f8b99c7c5aceb7bd2eb39e1ead648ea58227d399ad84c724",
+      "block_sha256": "c5c98bb825476630024e24283a7727734eb1c7e09729b0b997aefdc4d107328b",
+      "genesis_balance_count": 1,
+      "height": 0,
+      "previous_hash": "54686520736c6565706572206d757374206177616b656e",
+      "response_bytes": 35515,
+      "response_file": "0-response.pb",
+      "response_sha256": "6fbbc18c24e166261031701de72e6bcde746172cf71cfa7a8802bdd5d8be5306",
+      "transaction_count": 6,
+      "transaction_types": [
+        "coinbase",
+        "transfer"
+      ]
+    },
+    {
+      "block_bytes": 252,
+      "block_file": "1-block-from-rpc.pb",
+      "block_hash": "67cd752cbed60c0d806c81a61ce74f01a93ccad5d886e2c2f1c3ad72ab000000",
+      "block_sha256": "a84ec7f432ad544f56301cceb868dc2d0bb68e36e9d1fbe3d90eb84b16359bc0",
+      "genesis_balance_count": 0,
+      "height": 1,
+      "previous_hash": "2a1c4a9433f1de36f8b99c7c5aceb7bd2eb39e1ead648ea58227d399ad84c724",
+      "response_bytes": 255,
+      "response_file": "1-response.pb",
+      "response_sha256": "ea1063c62cc603b1943f8fd5514f4958df7f6f8e5bc72604a008da5588d2bd45",
+      "transaction_count": 1,
+      "transaction_types": [
+        "coinbase"
+      ]
+    },
+    {
+      "block_bytes": 257,
+      "block_file": "1000000-block-from-rpc.pb",
+      "block_hash": "2cb5ea1bd0049cb235936ec27a7cd8ea27484d44db19412295b422d701000000",
+      "block_sha256": "720060a7807c2cf1060ebd1db6a584ef3e082ab5f515d8cd2d2a33005fffe607",
+      "genesis_balance_count": 0,
+      "height": 1000000,
+      "previous_hash": "64f43002f1e461d29e3738908273a9975e27b43eb31be190bd0ada1e06000000",
+      "response_bytes": 260,
+      "response_file": "1000000-response.pb",
+      "response_sha256": "b9d23a57a5172a470c6f347a78a0cdd87c90d8b74c8b9439bacfbd20ee8689b4",
+      "transaction_count": 1,
+      "transaction_types": [
+        "coinbase"
+      ]
+    },
+    {
+      "block_bytes": 257,
+      "block_file": "2000000-block-from-rpc.pb",
+      "block_hash": "b08b404fb9e59e99032e704c554f6165546c9ca034d613bee2fb20c402000000",
+      "block_sha256": "95820a685f985091dcbecd81f947cd67a36b3ea82b1f1932609110e5acc78ddf",
+      "genesis_balance_count": 0,
+      "height": 2000000,
+      "previous_hash": "4752fd6ecbe0691457747228ab14657729b98be2b1ed6060117e3f5a02000000",
+      "response_bytes": 260,
+      "response_file": "2000000-response.pb",
+      "response_sha256": "2500164ee5410949f684fbdf4119b655a97f9e9cf833c9ba81296310051c846d",
+      "transaction_count": 1,
+      "transaction_types": [
+        "coinbase"
+      ]
+    },
+    {
+      "block_bytes": 258,
+      "block_file": "3000000-block-from-rpc.pb",
+      "block_hash": "28dbdc8103e04b1d8dd177fba50d4331a5b1f8630cae9cf85e134ace00000000",
+      "block_sha256": "c1b0a1f693d0014f09c8c0447233e985a679ffab580d5823072546177b8dc56d",
+      "genesis_balance_count": 0,
+      "height": 3000000,
+      "previous_hash": "863c5f88db083269fdc40d5ebf03de63885f30c5f124d126e7800fd905000000",
+      "response_bytes": 261,
+      "response_file": "3000000-response.pb",
+      "response_sha256": "71dd2bead429d470d08e393b7060c1eb78c4a10114aacfa90952e0456707a266",
+      "transaction_count": 1,
+      "transaction_types": [
+        "coinbase"
+      ]
+    },
+    {
+      "block_bytes": 3076,
+      "block_file": "4000000-block-from-rpc.pb",
+      "block_hash": "393553df8c87aec706154532a0cf4f8988881a31219ca9a6ca24394600000000",
+      "block_sha256": "8f462026cc5f1d3e14c8c8bc3dd381f79a8d2c9fd2d8cd436dbd25d6f31f0107",
+      "genesis_balance_count": 0,
+      "height": 4000000,
+      "previous_hash": "21198e884c8ba9c8e6e9e97560b5e05b3bb7615719458f770ff0f83a00000000",
+      "response_bytes": 3079,
+      "response_file": "4000000-response.pb",
+      "response_sha256": "fbfb7fb7d0832fc98fa9dc9f5a4e3593e9e611c2e922783cde1fb970aadb905e",
+      "transaction_count": 2,
+      "transaction_types": [
+        "coinbase",
+        "token"
+      ]
+    },
+    {
+      "block_bytes": 259,
+      "block_file": "4373500-block-from-rpc.pb",
+      "block_hash": "e2d33039789f7c5c3e5fee83a75326b8e348ef91985adb43e483913300000000",
+      "block_sha256": "a3c1df03d49aa2d934524318d733b88b19c63c0613a2c6623431294c1d6c1f59",
+      "genesis_balance_count": 0,
+      "height": 4373500,
+      "previous_hash": "dea282d074c1e28e38d62ae24c5e39d0d6cb39ba934fdcdc2f42c15000000000",
+      "response_bytes": 262,
+      "response_file": "4373500-response.pb",
+      "response_sha256": "16b603c3a1c5691c290cf1dae03dd03018d678c1ca13a973c749d28973702a74",
+      "transaction_count": 1,
+      "transaction_types": [
+        "coinbase"
+      ]
+    }
+  ],
+  "scope": "Read-only public gRPC responses. Extracted Block bytes are from RPC serialization; they are not the exact bytes stored in mainnet LevelDB and do not test LevelDB key or height mapping.",
+  "source_documentation": "https://docs.theqrl.org/tutorials/node/node-cli-use/",
+  "source_endpoint": "mainnet-1.automated.theqrl.org:19009",
+  "source_method": "qrl.PublicAPI/GetBlockByNumber"
+}

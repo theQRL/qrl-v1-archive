@@ -17,3 +17,5 @@ qrl-archive verify --canonical canonical --expect-network-id testnet --expect-ge
 ```
 
 The LevelDB does not store a trusted network name. `--network-id` is an operator claim tied to the independently checked genesis hash. `consensus` and `full` modes fail closed. The independent comparator, SQLite/Parquet builder, release packager, signature verifier and fixture runner remain to be built. The unsigned R2 smoke objects in `fixtures/` do not pass any archive gate.
+
+The exporter and verifier pin the shipped `qrl.proto`, generated `qrl_pb2.py` file, and binding descriptor by SHA-256; all three digests are required in `shards.json` and emitted in command reports. The protobuf source is unchanged across QRL v4.0.1 through v4.0.11, but real mainnet LevelDB fixtures and a live mainnet build check are still required before mainnet use. Exact stored bytes remain the canonical record even when the decoder is updated.

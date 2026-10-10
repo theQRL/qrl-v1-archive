@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -14,6 +13,7 @@ from pathlib import Path
 from . import __version__
 from .block_stream_v1 import MAX_BLOCKS_PER_SHARD, MAX_SHARD_BYTES, export_source, verify_archive
 from .errors import ArchiveError, IntegrityError, SourceError
+from .protobuf_schema import schema_fingerprints
 from .source import LevelDBSource
 
 
@@ -137,11 +137,11 @@ def main(argv: list[str] | None = None) -> int:
         "schema": "qrl.v1.archive.report.v1",
         "tool": "qrl-archive",
         "tool_version": __version__,
-        "protobuf_schema_sha256": hashlib.sha256((Path(__file__).parent / "vendor" / "qrl.proto").read_bytes()).hexdigest(),
         "command": args.command,
         "started_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     try:
+        report.update(schema_fingerprints())
         result = _execute(args)
         report.update(status="PASS", exit_code=0, result=result)
         code = 0

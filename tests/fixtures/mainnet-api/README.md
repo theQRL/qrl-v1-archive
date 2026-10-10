@@ -1,0 +1,7 @@
+# QRL v1 mainnet API protobuf compatibility fixtures
+
+These seven small samples were fetched on 10 October 2026 from the [official QRL public mainnet node](https://docs.theqrl.org/tutorials/node/node-cli-use/) at `mainnet-1.automated.theqrl.org:19009`. It reported `4.0.11 python` and network ID `The sleeper must awaken`. The exact capture time, observed tip, heights, hashes, lengths, and SHA-256 digests are in `manifest.json`. A second official node, `mainnet-2.automated.theqrl.org:19009`, independently returned the same block hashes at heights 0, 4,000,000, and 4,373,500 and reported the same node version and network ID.
+
+`*-response.pb` is the complete gRPC `GetBlockByNumberResp` wire response. `*-block-from-rpc.pb` is the embedded `Block` wire field extracted without local protobuf reserialization. The fixture set exercises the vendored schema against real mainnet API responses, including genesis transfers and a token transaction at height 4,000,000. The offline test checks known fields, identities, and digests.
+
+**Scope limit:** the node may have reserialized the `Block` when serving RPC. These files are not byte-exact native LevelDB values and do not test mainnet LevelDB keys, height mapping, source opening, full chain validation, or historical consensus. A stopped mainnet node copy must pass those separate checks before mainnet export can be approved. The public mainnet remains live; this fixture set is not an archive release.

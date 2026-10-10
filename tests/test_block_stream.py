@@ -14,6 +14,12 @@ from google.protobuf.json_format import MessageToJson
 from qrl_archive.block_stream_v1 import export_source, verify_archive
 from qrl_archive.cli import main
 from qrl_archive.errors import IntegrityError, SourceError
+from qrl_archive.protobuf_schema import (
+    PROTOBUF_BINDING_SHA256,
+    PROTOBUF_DESCRIPTOR_SHA256,
+    PROTOBUF_SCHEMA_SHA256,
+    assert_pinned_schema,
+)
 from qrl_archive.source import LevelDBSource, _get
 from qrl_archive.vendor import qrl_pb2
 
@@ -82,6 +88,9 @@ def _replace_and_rehash(output: Path, index: dict, shard_number: int, data: byte
 
 def test_exact_stored_bytes_and_structural_report(tmp_path):
     db_path, output, hashes, raws, index = _export(tmp_path)
+    assert index["protobuf_schema_sha256"] == PROTOBUF_SCHEMA_SHA256
+    assert index["protobuf_binding_sha256"] == PROTOBUF_BINDING_SHA256
+    assert index["protobuf_descriptor_sha256"] == PROTOBUF_DESCRIPTOR_SHA256
     assert [entry["record_count"] for entry in index["shards"]] == [2, 1]
     assert index["block_count"] == 3
     assert _verify(output, hashes)["structural_verified"] is True
@@ -91,6 +100,85 @@ def test_exact_stored_bytes_and_structural_report(tmp_path):
     with LevelDBSource(db_path) as source:
         assert source.inspect()["cumulative_difficulty"] == "3"
         assert source.get_block(0)[0] == raws[0]
+
+
+def test_pinned_protobuf_source_and_descriptor_match_shipped_files():
+    assert_pinned_schema()
+    proto = Path(__file__).parents[1] / "src" / "qrl_archive" / "vendor" / "qrl.proto"
+    binding = proto.with_name("qrl_pb2.py")
+    assert hashlib.sha256(proto.read_bytes()).hexdigest() == PROTOBUF_SCHEMA_SHA256
+    assert hashlib.sha256(binding.read_bytes()).hexdigest() == PROTOBUF_BINDING_SHA256
+    assert hashlib.sha256(qrl_pb2.DESCRIPTOR.serialized_pb).hexdigest() == PROTOBUF_DESCRIPTOR_SHA256
+
+
+@pytest.mark.parametrize("field", ["protobuf_schema_sha256", "protobuf_binding_sha256",
+                                   "protobuf_descriptor_sha256"])
+def test_mismatched_or_missing_protobuf_pin_fails(tmp_path, field):
+    _, output, hashes, _, index = _export(tmp_path)
+    index[field] = "0" * 64
+    (output / "shards.json").write_text(json.dumps(index, sort_keys=True, separators=(",", ":")) + "\n")
+    with pytest.raises(IntegrityError, match=field):
+        _verify(output, hashes)
+    del index[field]
+    (output / "shards.json").write_text(json.dumps(index, sort_keys=True, separators=(",", ":")) + "\n")
+    with pytest.raises(IntegrityError, match=field):
+        _verify(output, hashes)
+
+
+def test_export_rejects_unpinned_local_protobuf(monkeypatch, tmp_path):
+    import qrl_archive.protobuf_schema as schema
+
+    db_path = tmp_path / "state"
+    hashes, _ = _chain(db_path)
+    monkeypatch.setattr(schema, "PROTOBUF_DESCRIPTOR_SHA256", "0" * 64)
+    with pytest.raises(IntegrityError, match="generated qrl_pb2 descriptor"):
+        with LevelDBSource(db_path) as source:
+            export_source(source, tmp_path / "archive", network_id="testnet",
+                          genesis_hash=hashes[0].hex(), fork_height=1,
+                          fork_hash=hashes[1].hex(), terminal_height=2,
+                          terminal_hash=hashes[2].hex(), run_id="testnet-r1-unit")
+    assert not (tmp_path / "archive").exists()
+
+
+def test_missing_protobuf_source_fails_with_report(monkeypatch, tmp_path):
+    import qrl_archive.protobuf_schema as schema
+
+    original_read = Path.read_bytes
+
+    def missing_proto(path):
+        if path.name == "qrl.proto":
+            raise FileNotFoundError("simulated missing schema")
+        return original_read(path)
+
+    monkeypatch.setattr(Path, "read_bytes", missing_proto)
+    with pytest.raises(IntegrityError, match="missing or unreadable"):
+        schema.assert_pinned_schema()
+    report = tmp_path / "missing-protobuf-report.json"
+    code = main(["inspect", "--source-db", str(tmp_path / "unused-state"),
+                 "--network-id", "testnet", "--json-report", str(report)])
+    assert code == 4
+    saved = json.loads(report.read_text())
+    assert saved["status"] == "FAIL"
+    assert saved["error"]["message"] == "vendored qrl.proto is missing or unreadable"
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_tampered_or_missing_generated_binding_fails(monkeypatch, missing):
+    import qrl_archive.protobuf_schema as schema
+
+    original_read = Path.read_bytes
+
+    def changed_binding(path):
+        if path.name == "qrl_pb2.py":
+            if missing:
+                raise FileNotFoundError("simulated missing binding")
+            return b"simulated changed generated binding"
+        return original_read(path)
+
+    monkeypatch.setattr(Path, "read_bytes", changed_binding)
+    expected = "missing or unreadable" if missing else "differs from the pinned binding"
+    with pytest.raises(IntegrityError, match=expected):
+        schema.assert_pinned_schema()
 
 
 def test_wrong_expected_identity_fails(tmp_path):
@@ -203,7 +291,11 @@ def test_cli_consensus_mode_fails_with_report(tmp_path):
         "--json-report", str(report),
     ])
     assert code == 4
-    assert json.loads(report.read_text())["status"] == "FAIL"
+    saved = json.loads(report.read_text())
+    assert saved["status"] == "FAIL"
+    assert saved["protobuf_schema_sha256"] == PROTOBUF_SCHEMA_SHA256
+    assert saved["protobuf_binding_sha256"] == PROTOBUF_BINDING_SHA256
+    assert saved["protobuf_descriptor_sha256"] == PROTOBUF_DESCRIPTOR_SHA256
     original = report.read_bytes()
     assert main([
         "verify", "--canonical", str(output), "--expect-network-id", "testnet",

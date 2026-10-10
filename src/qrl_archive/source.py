@@ -13,6 +13,7 @@ import plyvel
 from google.protobuf.json_format import Parse
 
 from .errors import IntegrityError, SourceError
+from .protobuf_schema import assert_pinned_schema
 from .vendor import qrl_pb2
 
 
@@ -66,6 +67,7 @@ class LevelDBSource:
         self.tip_height = None
 
     def __enter__(self):
+        assert_pinned_schema()
         if self.path.is_symlink() or not self.path.is_dir():
             raise SourceError("source must be an existing, non-symlink LevelDB directory")
         if not (self.path / "CURRENT").is_file():
