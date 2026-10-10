@@ -2,13 +2,16 @@
 
 > **This is a test of the archival process, not the QRL v1 mainnet archive.** During these rehearsals, the public testnet and mainnet remain live. Blocks produced after the lab fork point belong to an isolated, disposable testnet branch. Do not use rehearsal data as evidence of mainnet balances or finality.
 
-This repository will hold the tools and formats needed to preserve and verify QRL v1 chain history. Work is at the implementation and testnet rehearsal stage. A passing rehearsal does not authorise mainnet retirement.
+This repository holds the first tools and formats needed to preserve and verify QRL v1 chain history. Work is at the implementation and testnet rehearsal stage. A passing rehearsal does not authorise mainnet retirement.
 
-## Planned contents
+## Current implementation
 
-- An exporter for exact block protobuf bytes stored by a pinned QRL v1 node.
-- Independent chain, integrity, signature and release verification tools.
-- Versioned canonical, SQLite and Parquet schemas.
+The local `qrl-archive` CLI inspects a stopped LevelDB working copy, exports exact stored block protobuf bytes into bounded version 1 shards, and checks shard structure, chain links, identity and SHA-256/SHA3-256 digests. Its [scope and commands](src/README.md) are documented with the [block-stream format](schemas/qrl-v1-block-stream-v1.md). Consensus and full verification requests fail because those modes are not implemented.
+
+## Still needed
+
+- Independent consensus, signature and release verification tools.
+- SQLite and Parquet schemas and derivation.
 - Golden fixtures, including deliberate testnet transactions and transfers with multiple recipients.
 - Tools to rebuild derived data from the canonical archive.
 
