@@ -1,7 +1,11 @@
 TESTNET ARCHIVE REHEARSAL — NOT THE QRL v1 MAINNET ARCHIVE
 
-This data-domain placeholder is an unsigned HTTP transport test. It contains no QRL chain export, no signed release, no balances and no terminal block.
+A signed point-in-time archive of the public QRL v1 testnet through block 1,620,000 is available at:
+https://data.v1.theqrl.org/testnet/snapshots/testnet-snapshot-h1620000-8d7d8a30-r1/manifest.json
 
-The public QRL testnet and mainnet remain live. Do not use any placeholder object as evidence of QRL history or finality.
+The testnet and mainnet continue running. This is not a terminal block or stopped-network archive. Later testnet blocks and live balances are outside the snapshot.
 
+The root status and transport-test files are unsigned. Verify the release manifest, manifest signature, artifact signatures and pinned QRL public key independently before relying on the snapshot.
+
+Explorer: https://archive.v1.theqrl.org/testnet/
 Project source: https://github.com/theQRL/qrl-v1-archive

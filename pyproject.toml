@@ -20,4 +20,4 @@ qrl-archive = "qrl_archive.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-qrl_archive = ["vendor/qrl.proto", "vendor/QRL-LICENSE"]
+qrl_archive = ["vendor/qrl.proto", "vendor/QRL-LICENSE", "qrl-v1-sqlite-v1.sql"]

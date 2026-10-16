@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import struct
 from pathlib import Path
 
@@ -11,16 +12,17 @@ import plyvel
 import pytest
 from google.protobuf.json_format import MessageToJson
 
-from qrl_archive.block_stream_v1 import export_source, verify_archive
+from qrl_archive.block_stream_v1 import export_source, iter_verified_records, verify_archive
+from qrl_archive.comparison import compare_archives
 from qrl_archive.cli import main
-from qrl_archive.errors import IntegrityError, SourceError
+from qrl_archive.errors import IntegrityError, SourceError, UsageError
 from qrl_archive.protobuf_schema import (
     PROTOBUF_BINDING_SHA256,
     PROTOBUF_DESCRIPTOR_SHA256,
     PROTOBUF_SCHEMA_SHA256,
     assert_pinned_schema,
 )
-from qrl_archive.source import LevelDBSource, _get
+from qrl_archive.source import LevelDBSource, _file_manifest, _get
 from qrl_archive.vendor import qrl_pb2
 
 
@@ -77,6 +79,14 @@ def _verify(output: Path, hashes: list[bytes]):
     )
 
 
+def _iter_records(output: Path, hashes: list[bytes]):
+    return iter_verified_records(
+        output, network_id="testnet", genesis_hash=hashes[0].hex(),
+        fork_height=1, fork_hash=hashes[1].hex(),
+        terminal_height=2, terminal_hash=hashes[2].hex(),
+    )
+
+
 def _replace_and_rehash(output: Path, index: dict, shard_number: int, data: bytes):
     shard = index["shards"][shard_number]
     (output / shard["name"]).write_bytes(data)
@@ -100,6 +110,58 @@ def test_exact_stored_bytes_and_structural_report(tmp_path):
     with LevelDBSource(db_path) as source:
         assert source.inspect()["cumulative_difficulty"] == "3"
         assert source.get_block(0)[0] == raws[0]
+
+
+def test_verified_record_offsets_and_shard_crossing(tmp_path):
+    _, output, hashes, raws, index = _export(tmp_path)
+    records = list(_iter_records(output, hashes))
+    assert [record.height for record in records] == [0, 1, 2]
+    assert [record.shard_name for record in records] == [
+        index["shards"][0]["name"], index["shards"][0]["name"],
+        index["shards"][1]["name"],
+    ]
+    for height, record in enumerate(records):
+        shard = (output / record.shard_name).read_bytes()
+        assert record.raw_block == raws[height]
+        assert record.protobuf_length == len(raws[height])
+        assert shard[record.protobuf_offset:record.protobuf_offset + record.protobuf_length] == raws[height]
+        assert struct.unpack_from("<Q", shard, record.protobuf_offset - 16)[0] == height
+        assert struct.unpack_from("<Q", shard, record.protobuf_offset - 8)[0] == len(raws[height])
+        assert record.block.header.block_number == height
+    assert records[0].protobuf_offset < records[1].protobuf_offset
+    assert records[2].protobuf_offset < records[1].protobuf_offset
+
+
+def test_verified_record_iterator_rejects_tamper_and_truncation(tmp_path):
+    _, output, hashes, _, index = _export(tmp_path)
+    path = output / index["shards"][1]["name"]
+    original = path.read_bytes()
+    path.write_bytes(original[:-1] + bytes([original[-1] ^ 1]))
+    with pytest.raises(IntegrityError, match="digest"):
+        list(_iter_records(output, hashes))
+    path.write_bytes(original)
+    _replace_and_rehash(output, index, 1, original[:-1])
+    with pytest.raises(IntegrityError, match="framing|truncated"):
+        list(_iter_records(output, hashes))
+
+
+def test_verified_record_iterator_checks_shard_again_before_yield(monkeypatch, tmp_path):
+    import qrl_archive.block_stream_v1 as stream_module
+
+    _, output, hashes, _, index = _export(tmp_path)
+    path = output / index["shards"][0]["name"]
+    original_verify = stream_module.verify_archive
+
+    def mutate_after_verification(*args, **kwargs):
+        result = original_verify(*args, **kwargs)
+        data = bytearray(path.read_bytes())
+        data[-1] ^= 1
+        path.write_bytes(data)
+        return result
+
+    monkeypatch.setattr(stream_module, "verify_archive", mutate_after_verification)
+    with pytest.raises(IntegrityError, match="changed after verification"):
+        next(_iter_records(output, hashes))
 
 
 def test_pinned_protobuf_source_and_descriptor_match_shipped_files():
@@ -250,6 +312,116 @@ def test_source_tip_must_match_terminal(tmp_path):
                           terminal_hash=hashes[1].hex(), run_id="testnet-r1-unit")
 
 
+def test_all_canonical_reads_use_one_snapshot(monkeypatch, tmp_path):
+    import qrl_archive.source as source_module
+
+    db_path = tmp_path / "state"
+    hashes, raws = _chain(db_path)
+    original_get = source_module._get
+    reads = []
+
+    def tracked_get(db, key, label):
+        reads.append((db, label))
+        return original_get(db, key, label)
+
+    with LevelDBSource(db_path) as source:
+        monkeypatch.setattr(source_module, "_get", tracked_get)
+        assert source.get_block(1)[0] == raws[1]
+        assert source.cumulative_difficulty(hashes[2]) == "3"
+        assert source.inspect()["tip_hash"] == hashes[2].hex()
+        assert all(db is source.snapshot for db, _ in reads)
+        snapshot_reads = len(reads)
+        source.finish_read()
+        assert reads[snapshot_reads] == (source.db, "blockheight")
+        assert all(db is source.db for db, _ in reads[snapshot_reads:])
+        assert {label for _, label in reads[snapshot_reads:]} == {
+            "blockheight", "genesis mapping", "genesis block",
+            "terminal mapping", "terminal block",
+        }
+
+
+def test_reader_reports_file_churn_without_rejecting_stable_snapshot(tmp_path):
+    db_path = tmp_path / "state"
+    hashes, raws = _chain(db_path)
+    with LevelDBSource(db_path) as source:
+        current = db_path / "CURRENT"
+        current_stat = current.stat()
+        os.utime(current, ns=(current_stat.st_atime_ns, current_stat.st_mtime_ns + 1_000_000_000))
+        assert source.get_block(2)[0] == raws[2]
+        source.finish_read()
+        assert source.data_files_changed_during_read is True
+    assert source.data_files_changed_during_read is True
+
+
+def test_manifest_records_file_removed_during_compaction(monkeypatch, tmp_path):
+    database = tmp_path / "state"
+    database.mkdir()
+    compacted = database / "000001.ldb"
+    compacted.write_bytes(b"disposable fixture")
+    original_lstat = Path.lstat
+
+    def disappearing_file(path):
+        if path == compacted:
+            raise FileNotFoundError(path)
+        return original_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", disappearing_file)
+    assert _file_manifest(database) == (("000001.ldb", -1, -1),)
+
+
+@pytest.mark.parametrize("mutation, error", [
+    ("height", "source tip moved"),
+    ("mapping", "source terminal mapping changed"),
+    ("block", "source terminal block changed"),
+])
+def test_tip_movement_after_staged_verification_prevents_publication(monkeypatch, tmp_path,
+                                                                    mutation, error):
+    import qrl_archive.block_stream_v1 as stream_module
+
+    db_path = tmp_path / "state"
+    hashes, _ = _chain(db_path)
+    output = tmp_path / "archive"
+    original_verify = stream_module.verify_archive
+
+    with pytest.raises(SourceError, match=error):
+        with LevelDBSource(db_path) as source:
+            def move_tip_after_verify(*args, **kwargs):
+                result = original_verify(*args, **kwargs)
+                if mutation == "height":
+                    source.db.put(b"blockheight", (3).to_bytes(8, "big"))
+                elif mutation == "mapping":
+                    replacement = qrl_pb2.BlockNumberMapping(
+                        headerhash=_hash("same-height-replacement"),
+                        prev_headerhash=hashes[1],
+                    )
+                    source.db.put(b"2", MessageToJson(replacement, sort_keys=True).encode())
+                else:
+                    _, block = source.get_block(2)
+                    block.transactions[0].transaction_hash = _hash("changed-tip-transaction")
+                    source.db.put(hashes[2], block.SerializeToString())
+                return result
+
+            monkeypatch.setattr(stream_module, "verify_archive", move_tip_after_verify)
+            stream_module.export_source(
+                source, output, network_id="testnet", genesis_hash=hashes[0].hex(),
+                fork_height=1, fork_hash=hashes[1].hex(), terminal_height=2,
+                terminal_hash=hashes[2].hex(), run_id="testnet-r1-unit",
+            )
+    assert not output.exists()
+    assert not list(tmp_path.glob(".qrl-archive-*"))
+
+
+@pytest.mark.parametrize("height, role", [(0, "genesis"), (1, "fork")])
+def test_changed_genesis_or_fork_mapping_fails_live_recheck(tmp_path, height, role):
+    db_path = tmp_path / "state"
+    _chain(db_path)
+    with pytest.raises(SourceError, match=f"source {role} mapping changed"):
+        with LevelDBSource(db_path) as source:
+            if role == "fork":
+                source.pin_anchor(height, role=role)
+            source.db.put(str(height).encode(), b"same-height-mapping-replacement")
+
+
 def test_live_leveldb_lock_is_rejected(tmp_path):
     db_path = tmp_path / "state"
     _chain(db_path)
@@ -305,3 +477,103 @@ def test_cli_consensus_mode_fails_with_report(tmp_path):
         "--json-report", str(report),
     ]) == 3
     assert report.read_bytes() == original
+
+
+def _comparison_pair(tmp_path):
+    a_root = tmp_path / "node-a"
+    b_root = tmp_path / "node-b"
+    a_root.mkdir()
+    b_root.mkdir()
+    _, a, hashes, raws, _ = _export(a_root)
+    b_db = b_root / "state"
+    b_hashes, b_raws = _chain(b_db)
+    assert b_hashes == hashes and b_raws == raws
+    b = b_root / "canonical"
+    with LevelDBSource(b_db) as source:
+        export_source(source, b, network_id="testnet", genesis_hash=hashes[0].hex(),
+                      fork_height=1, fork_hash=hashes[1].hex(), terminal_height=2,
+                      terminal_hash=hashes[2].hex(), run_id="node-b", max_blocks=1,
+                      max_bytes=1024)
+    return a, b, hashes
+
+
+def _compare_args(a, b, hashes, report):
+    return [
+        "compare", "--canonical-a", str(a), "--canonical-b", str(b),
+        "--expect-network-id", "testnet",
+        "--expect-genesis-hash", hashes[0].hex(),
+        "--expect-fork-height", "1", "--expect-fork-hash", hashes[1].hex(),
+        "--expect-terminal-height", "2", "--expect-terminal-hash", hashes[2].hex(),
+        "--json-report", str(report),
+    ]
+
+
+def test_compare_equal_exact_bytes_across_independent_dbs_and_shard_sizes(tmp_path):
+    a, b, hashes = _comparison_pair(tmp_path)
+    first_report = tmp_path / "compare-1.json"
+    second_report = tmp_path / "compare-2.json"
+    assert main(_compare_args(a, b, hashes, first_report)) == 0
+    assert main(_compare_args(a, b, hashes, second_report)) == 0
+    assert first_report.read_bytes() == second_report.read_bytes()
+    result = json.loads(first_report.read_text())["result"]
+    assert result["exact_block_bytes_equal"] is True
+    assert result["block_count"] == 3
+    assert result["a"]["shard_count"] == 2
+    assert result["b"]["shard_count"] == 3
+    assert result["a"]["block_stream_sha256"] == result["b"]["block_stream_sha256"]
+    assert result["a"]["block_stream_sha3_256"] == result["b"]["block_stream_sha3_256"]
+    assert result["a"]["index_sha256"] != result["b"]["index_sha256"]
+    assert result["first_mismatch"] is None
+    assert result["consensus_verified"] is False
+    assert result["source_independence_verified"] is False
+
+
+def test_compare_reports_first_byte_difference_even_when_structurally_valid(tmp_path):
+    a, b, hashes = _comparison_pair(tmp_path)
+    index = json.loads((b / "shards.json").read_text())
+    shard = b / index["shards"][1]["name"]
+    original = shard.read_bytes()
+    assert original.count(b"\xf8\x07\x01") == 1
+    _replace_and_rehash(b, index, 1, original.replace(b"\xf8\x07\x01", b"\xf8\x07\x02", 1))
+    assert _verify(b, hashes)["structural_verified"] is True
+
+    first_report = tmp_path / "different-1.json"
+    second_report = tmp_path / "different-2.json"
+    assert main(_compare_args(a, b, hashes, first_report)) == 5
+    assert main(_compare_args(a, b, hashes, second_report)) == 5
+    assert first_report.read_bytes() == second_report.read_bytes()
+    saved = json.loads(first_report.read_text())
+    assert saved["status"] == "FAIL"
+    assert saved["error"]["class"] == "DisagreementError"
+    result = saved["result"]
+    assert result["block_count"] == 3
+    assert result["first_mismatch"]["height"] == 1
+    assert result["first_mismatch"]["a_sha256"] != result["first_mismatch"]["b_sha256"]
+    assert result["a"]["block_stream_sha256"] != result["b"]["block_stream_sha256"]
+    assert result["a"]["block_stream_sha3_256"] != result["b"]["block_stream_sha3_256"]
+    assert result["exact_block_bytes_equal"] is False
+
+
+def test_compare_rejects_corrupt_archive_before_byte_comparison(tmp_path):
+    a, b, hashes = _comparison_pair(tmp_path)
+    index = json.loads((b / "shards.json").read_text())
+    shard = b / index["shards"][0]["name"]
+    shard.write_bytes(shard.read_bytes() + b"\x00")
+    report = tmp_path / "corrupt-compare.json"
+    assert main(_compare_args(a, b, hashes, report)) == 4
+    saved = json.loads(report.read_text())
+    assert saved["status"] == "FAIL"
+    assert saved["error"]["class"] == "IntegrityError"
+    assert "result" not in saved
+
+
+def test_compare_rejects_same_directory_and_wrong_anchor(tmp_path):
+    a, b, hashes = _comparison_pair(tmp_path)
+    with pytest.raises(UsageError, match="distinct canonical directories"):
+        compare_archives(a, a, network_id="testnet", genesis_hash=hashes[0].hex(),
+                         fork_height=1, fork_hash=hashes[1].hex(), terminal_height=2,
+                         terminal_hash=hashes[2].hex())
+    with pytest.raises(IntegrityError, match="network_id"):
+        compare_archives(a, b, network_id="mainnet", genesis_hash=hashes[0].hex(),
+                         fork_height=1, fork_hash=hashes[1].hex(), terminal_height=2,
+                         terminal_hash=hashes[2].hex())

@@ -1,12 +1,15 @@
 {
-  "schema": "qrl.v1.archive.placeholder.v1",
-  "status": "setup-only",
-  "warning": "TESTNET ARCHIVE REHEARSAL. Not the QRL v1 mainnet archive. The public testnet and mainnet remain live.",
-  "signed": false,
-  "chain_data_available": false,
-  "run_id": null,
-  "fork_height": null,
-  "terminal_height": null,
-  "release_url": null,
+  "schema": "qrl.v1.archive.data-index.v1",
+  "status": "signed-testnet-snapshot-available",
+  "warning": "TESTNET ARCHIVE REHEARSAL. This root index is unsigned. The signed snapshot records public testnet only through block 1,620,000. Testnet and mainnet remain live; no mainnet archive is published here.",
+  "testnet_snapshot": {
+    "tag": "testnet-snapshot-h1620000-8d7d8a30-r1",
+    "cutoff_height": 1620000,
+    "cutoff_hash": "8d7d8a30d928d52e74dd68f453d99604e5c8290c3df88d182353d4abcc8c0300",
+    "terminal": false,
+    "signed_manifest": "testnet/snapshots/testnet-snapshot-h1620000-8d7d8a30-r1/manifest.json",
+    "manifest_signature": "testnet/snapshots/testnet-snapshot-h1620000-8d7d8a30-r1/manifest.json.sig",
+    "artifact_signatures": "testnet/snapshots/testnet-snapshot-h1620000-8d7d8a30-r1/signatures.txt"
+  },
   "transport_test_object": "testnet/placeholder/range-test.txt"
 }

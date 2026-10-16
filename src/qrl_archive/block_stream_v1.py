@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import shutil
 import sqlite3
 import struct
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import IntegrityError, SourceError, UsageError
@@ -19,6 +21,7 @@ from .protobuf_schema import (
     assert_pinned_schema,
 )
 from .source import decode_block
+from .vendor import qrl_pb2
 
 
 MAGIC = b"QRLV1BLK"
@@ -27,6 +30,23 @@ MAX_BLOCKS_PER_SHARD = 10_000
 MAX_SHARD_BYTES = 64 * 1024 * 1024
 SCHEMA = "qrl-v1-block-stream-v1"
 INDEX_SCHEMA = "qrl.v1.archive.shards.v1"
+
+
+@dataclass(frozen=True)
+class CanonicalBlockRecord:
+    """One stored Block value and its byte location in a verified shard.
+
+    protobuf_offset points to the first protobuf byte, after the record's
+    height and length fields. raw_block is the exact stored value; block is
+    its parsed view and must not be serialized to recover the original bytes.
+    """
+
+    height: int
+    shard_name: str
+    protobuf_offset: int
+    protobuf_length: int
+    raw_block: bytes
+    block: qrl_pb2.Block
 
 
 def _u32(value: int) -> bytes:
@@ -173,6 +193,7 @@ def export_source(source, output: Path, *, network_id: str, genesis_hash: str,
     genesis_bytes = _hex32(genesis_hash, "genesis hash")
     fork_bytes = _hex32(fork_hash, "fork hash")
     terminal_bytes = _hex32(terminal_hash, "terminal hash")
+    source.pin_anchor(fork_height, role="fork")
     if output.exists():
         raise SourceError("output path already exists")
     if not output.parent.is_dir():
@@ -233,11 +254,11 @@ def export_source(source, output: Path, *, network_id: str, genesis_hash: str,
             stream.write(json.dumps(index, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n")
             stream.flush()
             os.fsync(stream.fileno())
-        source.assert_stable()
         verify_archive(stage, network_id=network_id, genesis_hash=genesis_hash,
                        fork_height=fork_height, fork_hash=fork_hash,
                        terminal_height=terminal_height, terminal_hash=terminal_hash)
         _sync_dir(stage)
+        source.finish_read()
         os.replace(stage, output)
         _sync_dir(output.parent)
         return index
@@ -390,3 +411,73 @@ def verify_archive(directory: Path, *, network_id: str, genesis_hash: str,
         "native_final_state_verified": False,
         "derived_data_verified": False,
     }
+
+
+def iter_verified_records(directory: Path, *, network_id: str, genesis_hash: str,
+                          fork_height: int, fork_hash: str, terminal_height: int,
+                          terminal_hash: str):
+    """Yield exact block bytes and offsets only after structural verification.
+
+    The full archive is checked first, including global height/link/hash and
+    transaction uniqueness. Each bounded shard is then read into memory and
+    checked against both index digests before any record from it is yielded.
+    This keeps a changing file from supplying unchecked bytes to a deriver.
+    Structural verification does not establish QRL consensus validity.
+    """
+    index_path = directory / "shards.json"
+    if index_path.is_symlink() or not index_path.is_file():
+        raise SourceError("missing or linked shards.json")
+    try:
+        index_bytes = index_path.read_bytes()
+    except OSError as error:
+        raise SourceError("could not read shards.json") from error
+
+    verify_archive(
+        directory, network_id=network_id, genesis_hash=genesis_hash,
+        fork_height=fork_height, fork_hash=fork_hash,
+        terminal_height=terminal_height, terminal_hash=terminal_hash,
+    )
+    try:
+        if index_path.read_bytes() != index_bytes:
+            raise IntegrityError("shards index changed during verification")
+        index = json.loads(index_bytes.decode("utf-8"), object_pairs_hook=_unique_json_object)
+    except (OSError, UnicodeError, ValueError) as error:
+        raise SourceError("could not read a valid shards.json") from error
+
+    next_height = 0
+    for shard in index["shards"]:
+        name = shard["name"]
+        path = directory / name
+        if path.is_symlink() or not path.is_file():
+            raise SourceError(f"missing shard {name}")
+        expected_size = shard["bytes"]
+        try:
+            with path.open("rb") as source:
+                data = source.read(expected_size + 1)
+        except OSError as error:
+            raise SourceError(f"could not read shard {name}") from error
+        if (len(data) != expected_size or hashlib.sha256(data).hexdigest() != shard["sha256"]
+                or hashlib.sha3_256(data).hexdigest() != shard["sha3_256"]):
+            raise IntegrityError(f"shard changed after verification: {name}")
+
+        stream = io.BytesIO(data)
+        network, genesis, first, last, count = _read_shard_header(stream)
+        if (network, genesis.hex(), first, last, count) != (
+            network_id, genesis_hash, shard["first_height"],
+            shard["last_height"], shard["record_count"],
+        ) or first != next_height:
+            raise IntegrityError(f"shard header changed after verification: {name}")
+        for _ in range(count):
+            height = _read_u64(stream)
+            length = _read_u64(stream)
+            offset = stream.tell()
+            if height != next_height or length < 1 or offset + length > len(data):
+                raise IntegrityError(f"record framing changed at height {next_height}")
+            raw = _read_exact(stream, length)
+            block = decode_block(raw, height)
+            yield CanonicalBlockRecord(height, name, offset, length, raw, block)
+            next_height += 1
+        if stream.read(1):
+            raise IntegrityError(f"trailing bytes in shard {name}")
+    if next_height != terminal_height + 1:
+        raise IntegrityError("archive record count changed during iteration")
