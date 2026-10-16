@@ -1,0 +1,28 @@
+# Native QRL v1 node recovery requirement
+
+The permanent archive must let an independent operator start a QRL v1 node at the archived height and state. Canonical `.qrlblk` shards preserve exact block history, but they are not a ready-to-open LevelDB database and do not currently reconstruct final account state. A separate, signed native recovery package is therefore a required preservation artefact. The read-only explorer must still work without a node.
+
+## Release contents
+
+For each of two independently sourced nodes at the same agreed height and hash, preserve a complete, cleanly stopped native `state/` database and a per-file manifest with paths, sizes, modes, SHA-256 and SHA3-256. Record source provenance, node and database versions, network/genesis identity, height, block hash, cumulative difficulty and the native application-state digest. Preserve the matching QRL v1 source and reproducible executable or OCI image, dependency/build metadata, genesis data, safe runtime configuration and exact restore instructions. The restore package must identify what was captured and what must be supplied separately; a database tar alone is not a complete recovery release.
+
+Publish bounded, ordered parts under an immutable `testnet/...` or `mainnet/...` release prefix at `data.v1.theqrl.org`, and keep an independently administered backup and offline custody copy. Bind each published part, the intact reassembled object, the runtime and the restoration guide in the signed inventory. Use the established QRL release key and distinct artifact and manifest contexts. Verify all served bytes after upload. Never add files to an already signed snapshot prefix or imply that the current public testnet snapshot includes a native backup.
+
+Before publication, inspect file membership, tar metadata, LevelDB diagnostic logs and database content for wallets, private keys, credentials and sensitive operational data. Preserve the original custodial bytes unchanged. A reviewed safe native copy may be served openly. If the exact copy cannot safely be public, publish signed encrypted parts and hold decryption material with two independent authorized custodians outside the public archive; record public ciphertext digests and restricted plaintext digests. A public URL for ciphertext alone does not establish public unaided node recovery. Never package a whole lab directory that also contains wallets or secrets.
+
+## Mandatory cold-restore acceptance
+
+1. On a fresh host without source-node disks or credentials, obtain the public key independently from the pinned `theQRL/security` revision. Download the native parts and preserved runtime from the public data domain, then verify the manifest, every required signature, SHA-256, SHA3-256, part order and intact reassembled digest. Repeat object verification from the independent backup.
+2. Create a disposable **writable copy** of the verified native database. Keep the custody copy read-only and unopened by LevelDB. Install the pinned runtime, genesis and reviewed safe configuration. Deny all external ingress and egress, peer discovery, public RPC, wallet submission and mining before the node starts.
+3. Start the node without database repair or public synchronization. Require the declared network/genesis identity, archived height/hash and cumulative difficulty. Compare a deterministic native application-state digest, selected balances, blocks, transactions and fixture responses with the signed A/B evidence. Stop and restart once; the tip must remain at the archive height and the database must remain readable. Record any LevelDB migration or file rewrite in the disposable copy.
+4. Stop the node, preserve the restore report and remove the disposable copy. A missing part, unexpected network connection, repair requirement, wrong tip, state mismatch or inability to start is a failed recovery gate. Do not retire original infrastructure on an untested package.
+
+This boot test is separate from rebuilding historical indexes from canonical shards with native access denied. Rehearsal 1 performs both while original lab disks remain recoverable. Rehearsal 2 first completes the shard-only recovery, then performs native cold restore from the signed release after the original lab disks have been destroyed. Both results are required before a mainnet retirement decision.
+
+## Current testnet snapshot
+
+The signed point-in-time release through block 1,620,000 contains canonical shards, derived query artefacts and a native-state comparison report, **not** a native database or bootable runtime package. Two stopped source captures are held locally. A disposable offline lab node has started from a verified copy of the S1 capture, which is preliminary proof of the native path. A clean-host restore from signed public parts and the independent backup is still required. The public testnet and mainnet remain live.
+
+A separate [native backup supplement](NATIVE-RECOVERY-SUPPLEMENT.md) for those two captures passed a scoped plaintext content review and received operator approval. It does not add native files to the earlier snapshot. All 85 public objects passed fresh download, SHA-256, SHA3-256 and independent ML-DSA verification on 16 October 2026. A preserved boot runtime, an independent provider backup and clean-host cold restore remain open gates.
+
+The [QRL node backup and restore guide](https://docs.theqrl.org/tutorials/node/backup-restore-node-state/) describes placing a saved `state/` directory under the node data directory and starting the compatible node. The archive acceptance procedure above adds release identity, signature, isolation and final-state checks to that basic restore operation.

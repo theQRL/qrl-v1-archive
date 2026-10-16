@@ -3,9 +3,11 @@
 This release is a fixed view of the still-running QRL v1 testnet through block
 1,620,000. It is a data and explorer rehearsal. It is not a terminal network
 archive, a claim that testnet has stopped, or authority to retire a node. A
-later final archive will record the network after its approved stop. Restoring
-a node is an optional recovery and forensic test, not part of using the public
-archive.
+later final archive will record the network after its approved stop. Routine
+use of the public archive does not require a node. The permanent archive must
+also pass a separate [native node recovery](NATIVE-NODE-RECOVERY.md) gate.
+This point-in-time release does not contain a native database or bootable
+runtime package and cannot satisfy that gate.
 
 ## Local release candidate
 

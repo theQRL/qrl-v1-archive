@@ -19,7 +19,7 @@ The local `qrl-archive` CLI inspects a stopped LevelDB working copy, exports exa
 - Golden fixtures, including deliberate testnet transactions and transfers with multiple recipients.
 - A proven final-network derivation of all required account state solely from canonical records.
 
-The permanent release will preserve native LevelDB custody copies and canonical chain data. Public users need the signed records and read-only explorer; a node does not have to restart to use the archive. Native copies remain for forensic recovery. Derived databases and indexes must be rebuildable. Releases must be checked against independent node exports and signed using QRL's existing release key.
+The permanent release will preserve native LevelDB custody copies and canonical chain data. Public users need the signed records and read-only explorer; routine use does not require a running node. A separately tested [native node recovery package](release/NATIVE-NODE-RECOVERY.md) must also let an independent operator start a QRL v1 node at the archived height and state. Derived chain indexes must be rebuildable from canonical shards; final account state currently depends on the independently checked native captures. Releases must be checked against independent node exports and signed using QRL's existing release key.
 
 ## Current files
 
